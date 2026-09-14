@@ -52,6 +52,21 @@ export function estimateTokens(text: string): number {
 }
 
 /**
+ * Strip one markdown code fence pair wrapping the whole output.
+ * Models sometimes wrap generated code in ``` regardless of instructions.
+ * Only the outermost pair is removed, so embedded fences are preserved.
+ */
+export function stripFences(text: string): string {
+  const trimmed = text.trim();
+  const fenceRe = /^```[a-zA-Z0-9_-]*$/;
+  const lines = trimmed.split('\n');
+  if (lines.length >= 2 && fenceRe.test(lines[0]) && fenceRe.test(lines[lines.length - 1])) {
+    return lines.slice(1, -1).join('\n').trim();
+  }
+  return trimmed;
+}
+
+/**
  * Check if bash command is a read operation
  */
 export function isBashReadCommand(command: string): { isRead: boolean; filePath?: string } {

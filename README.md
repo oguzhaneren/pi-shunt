@@ -28,7 +28,7 @@ That's it! Shunt automatically intercepts large file reads and routes them to Ge
 
 ## Documentation
 
-- [Extension Documentation](./extension/README.md) – Full usage guide
+- [Extension Documentation](./extensions/README.md) – Full usage guide
 - [Implementation Plan](./IMPLEMENTATION_PLAN.md) – Architecture details
 - [Original Blog Post](https://engineering.atspotify.com/2026/9/portal-by-spotify-cut-my-claude-code-token-usage-by-90) – Spotify's approach
 
@@ -62,13 +62,13 @@ Add to `~/.pi/agent/settings.json`:
 }
 ```
 
-See [Configuration](./extension/README.md#configuration) for all options.
+See [Configuration](./extensions/README.md#configuration) for all options.
 
 ## Project Structure
 
 ```
 pi-shunt/
-├── extension/              # Pi extension source code
+├── extensions/              # Pi extension source code
 │   ├── index.ts           # Main entry point
 │   ├── package.json       # Extension dependencies
 │   ├── lib/               # Core logic
@@ -86,7 +86,7 @@ cd extension
 npm install
 
 # Test locally
-pi -e ./extension/index.ts
+pi -e ./extensions/index.ts
 
 # Or symlink
 ln -s $(pwd)/extension ~/.pi/agent/extensions/pi-shunt

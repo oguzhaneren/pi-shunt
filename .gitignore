@@ -5,7 +5,7 @@ dist/
 *.tsbuildinfo
 .env
 .env.local
-
+shunt/
 # Pi session files
 .pi/sessions/
 .pi/temp/

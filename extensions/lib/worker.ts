@@ -76,33 +76,72 @@ export async function delegateToWorker(
 
   try {
     const result = await spawnPi(config, messagePath, signal);
-
-    // Fall back to rough estimates only if the JSON output carried no usage.
-    if (result.usage) {
-      const usage = result.usage;
-      return {
-        text: result.text,
-        usage,
-        inputTokens: usage.input,
-        outputTokens: usage.output,
-        totalTokens: usage.input + usage.output,
-        workerModel: result.workerModel,
-      };
-    }
-
-    const inputTokens = estimateTokens(message);
-    const outputTokens = estimateTokens(result.text);
-    return {
-      text: result.text,
-      inputTokens,
-      outputTokens,
-      totalTokens: inputTokens + outputTokens,
-      workerModel: result.workerModel,
-    };
+    return toWorkerResult(result, message);
   } finally {
     // Cleanup
     await fs.promises.rm(tmpDir, { recursive: true, force: true });
   }
+}
+
+/**
+ * Delegate code generation to a cheaper worker model by spawning a pi
+ * subprocess. The reference file provides patterns the output must match.
+ * Uses the write-mode system prompt (config.writeInstructions).
+ */
+export async function delegateWriteToWorker(
+  spec: string,
+  reference: { path: string; content: string },
+  config: ShuntConfig,
+  signal?: AbortSignal
+): Promise<WorkerResult> {
+  const message =
+    `Spec: ${spec}\n\n` +
+    `Reference file to match patterns from (${reference.path}):\n${reference.content}`;
+
+  // Check payload size
+  if (message.length > config.maxPayloadBytes) {
+    throw new Error(
+      `Request size ${message.length} bytes exceeds limit ${config.maxPayloadBytes} bytes. ` +
+      `Use a smaller reference file or shorter spec.`
+    );
+  }
+
+  // Write message to temp file
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pi-shunt-'));
+  const messagePath = path.join(tmpDir, 'message.txt');
+  await fs.promises.writeFile(messagePath, message, 'utf-8');
+
+  try {
+    const result = await spawnPi(config, messagePath, signal, config.writeInstructions);
+    return toWorkerResult(result, message);
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
+/** Convert a raw spawn result to a WorkerResult, falling back to estimates. */
+function toWorkerResult(result: SpawnResult, message: string): WorkerResult {
+  if (result.usage) {
+    const usage = result.usage;
+    return {
+      text: result.text,
+      usage,
+      inputTokens: usage.input,
+      outputTokens: usage.output,
+      totalTokens: usage.input + usage.output,
+      workerModel: result.workerModel,
+    };
+  }
+
+  const inputTokens = estimateTokens(message);
+  const outputTokens = estimateTokens(result.text);
+  return {
+    text: result.text,
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    workerModel: result.workerModel,
+  };
 }
 
 interface SpawnResult {
@@ -121,7 +160,8 @@ interface SpawnResult {
 async function spawnPi(
   config: ShuntConfig,
   messagePath: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  systemPrompt?: string
 ): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
     const args = [
@@ -129,7 +169,7 @@ async function spawnPi(
       '-p',
       '--no-session',
       '--model', config.workerModel,
-      '--system-prompt', config.workerInstructions,
+      '--system-prompt', systemPrompt ?? config.workerInstructions,
       '--no-tools',
       // '@' prefix makes pi read the message file as the user message
       // (without it, pi treats the path as literal text).

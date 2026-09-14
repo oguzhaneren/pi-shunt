@@ -14,6 +14,9 @@ import { loadConfig } from './lib/config.ts';
 import { getLineCount, isBashReadCommand } from './lib/utils.ts';
 import { formatStats, fileTokenEstimate, recordRawFile, stats, countedPaths } from './lib/stats.ts';
 import { registerShuntRead } from './tools/shunt-read.ts';
+import { registerShuntWrite } from './tools/shunt-write.ts';
+
+type ShortcutKey = Parameters<ExtensionAPI['registerShortcut']>[0];
 
 export default function piShuntExtension(pi: ExtensionAPI) {
   // process.cwd() is the directory pi was launched from (the project dir).
@@ -27,9 +30,13 @@ export default function piShuntExtension(pi: ExtensionAPI) {
   // Register the bulk read tool
   registerShuntRead(pi, config);
 
+  // Register the code generation tool
+  registerShuntWrite(pi, config);
+
   // Hook: Intercept Read tool calls on large files
   pi.on('tool_call', async (event, ctx) => {
     if (event.toolName !== 'read') return;
+    if (!config.enabled || !config.readEnabled) return;
 
     const filePath = event.input.path as string | undefined;
     const offset = event.input.offset as number | undefined;
@@ -68,6 +75,7 @@ export default function piShuntExtension(pi: ExtensionAPI) {
   // Hook: Intercept Bash read commands on large files
   pi.on('tool_call', async (event, ctx) => {
     if (event.toolName !== 'bash') return;
+    if (!config.enabled || !config.readEnabled) return;
 
     const command = event.input.command as string | undefined;
     if (!command) return;
@@ -124,6 +132,7 @@ export default function piShuntExtension(pi: ExtensionAPI) {
       stats.totalLatencyMs = 0;
       stats.cacheHits = 0;
       stats.errors = 0;
+      stats.writesDone = 0;
       stats.mainModel = undefined;
       countedPaths.clear();
       ctx.ui.notify('pi-shunt stats reset', 'info');
@@ -142,6 +151,13 @@ Min Lines Threshold: ${config.minLines}
 Max Payload Bytes: ${config.maxPayloadBytes}
 Worker Model: ${config.workerModel}
 Worker Temperature: ${config.workerTemperature}
+Cycle Key: ${config.cycleKey}
+
+Toggle Status
+=============
+All: ${config.enabled ? 'ENABLED' : 'DISABLED'}
+Read: ${config.readEnabled ? 'ENABLED' : 'DISABLED'}
+Write: ${config.writeEnabled ? 'ENABLED' : 'DISABLED'}
 
 Config sources (highest priority wins)
 ======================================
@@ -159,15 +175,74 @@ needed after editing settings.json.
     }
   });
 
-  // Register command to temporarily disable/enable shunt
+  // Combined state label for toggles and cycle. Handles every flag
+  // combination, including the degenerate read-off + write-off state
+  // reachable only by mixing manual toggles.
+  const stateLabel = () =>
+    !config.enabled ? 'all off'
+    : !config.readEnabled && !config.writeEnabled ? 'read off, write off'
+    : config.readEnabled && config.writeEnabled ? 'all on (read on, write on)'
+    : !config.readEnabled ? 'only write (read off, write on)'
+    : 'only read (read on, write off)';
+
+  // Register command to temporarily disable/enable shunt (all)
   pi.registerCommand('shunt:toggle', {
-    description: 'Toggle pi-shunt on/off for this session',
+    description: 'Toggle pi-shunt (all) on/off for this session',
     handler: async (args, ctx) => {
       config.enabled = !config.enabled;
-      ctx.ui.notify(
-        `pi-shunt ${config.enabled ? 'enabled' : 'disabled'}`,
-        config.enabled ? 'info' : 'warning'
-      );
+      ctx.ui.notify(`pi-shunt: ${stateLabel()}`, config.enabled ? 'info' : 'warning');
     }
   });
+
+  // Register command to toggle the read hooks + shunt_read tool
+  pi.registerCommand('shunt:toggle:read', {
+    description: 'Toggle read interception + shunt_read on/off for this session',
+    handler: async (args, ctx) => {
+      config.readEnabled = !config.readEnabled;
+      ctx.ui.notify(`pi-shunt: ${stateLabel()}`, config.readEnabled ? 'info' : 'warning');
+    }
+  });
+
+  // Register command to toggle just the write tool
+  pi.registerCommand('shunt:toggle:write', {
+    description: 'Toggle shunt_write (code generation) on/off for this session',
+    handler: async (args, ctx) => {
+      config.writeEnabled = !config.writeEnabled;
+      ctx.ui.notify(`pi-shunt: ${stateLabel()}`, config.writeEnabled ? 'info' : 'warning');
+    }
+  });
+
+  // Cycle through toggle states in order: all on → only read → only write → all off.
+  // Derives the next state from the current flags, so manual toggles in between
+  // don't desync the cycle.
+  const cycle = () => {
+    if (!config.enabled) {
+      config.enabled = true;
+      config.readEnabled = true;
+      config.writeEnabled = true;
+    } else if (!config.readEnabled) {
+      config.enabled = false;
+    } else if (!config.writeEnabled) {
+      config.readEnabled = false;
+      config.writeEnabled = true;
+    } else {
+      config.writeEnabled = false;
+    }
+  };
+
+  // Configurable shortcut (SHUNT_CYCLE_KEY). A bad binding must not take down
+  // the extension, so register in a try/catch and log the failure.
+  try {
+    pi.registerShortcut(config.cycleKey as ShortcutKey, {
+      description: 'Cycle pi-shunt: all on → only read → only write → all off',
+      handler: async (ctx) => {
+        cycle();
+        ctx.ui.notify(`pi-shunt: ${stateLabel()}`, config.enabled ? 'info' : 'warning');
+      }
+    });
+  } catch (error) {
+    console.warn(
+      `pi-shunt: invalid cycle key "${config.cycleKey}" (SHUNT_CYCLE_KEY), shortcut not registered: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 }

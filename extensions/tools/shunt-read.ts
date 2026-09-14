@@ -34,6 +34,14 @@ export function registerShuntRead(pi: ExtensionAPI, config: ShuntConfig) {
     async execute(toolCallId, params, signal, onUpdate, ctx) {
       const { question, paths } = params;
 
+      if (!config.enabled || !config.readEnabled) {
+        return {
+          content: [{ type: 'text', text: 'shunt_read is disabled. Enable it with /shunt:toggle:read.' }],
+          details: { error: 'read_disabled' },
+          isError: true
+        };
+      }
+
       // Validate files
       const files: Array<{ path: string; content: string }> = [];
       for (const filePath of paths) {

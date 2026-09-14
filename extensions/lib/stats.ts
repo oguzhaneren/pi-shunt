@@ -16,6 +16,8 @@ export interface ShuntStats {
   readsIntercepted: number;
   readsPassed: number;
   bashIntercepted: number;
+  /** Completed shunt_write calls (code written to a target file). */
+  writesDone: number;
   /** Tokens kept OUT of the main model's context (blocked files + worker corpora). */
   rawTokens: number;
   /** Tokens of summaries that DID enter the main model's context. */
@@ -35,6 +37,7 @@ export const stats: ShuntStats = {
   readsIntercepted: 0,
   readsPassed: 0,
   bashIntercepted: 0,
+  writesDone: 0,
   rawTokens: 0,
   compressedTokens: 0,
   workerInput: 0,
@@ -85,7 +88,8 @@ export function formatStats(s: ShuntStats): string {
     '',
     line('Reads intercepted:', fmt(s.readsIntercepted)),
     line('Reads passed:', fmt(s.readsPassed)),
-    line('Bash intercepted:', fmt(s.bashIntercepted))
+    line('Bash intercepted:', fmt(s.bashIntercepted)),
+    line('Files written:', fmt(s.writesDone))
   );
 
   blocks.push(

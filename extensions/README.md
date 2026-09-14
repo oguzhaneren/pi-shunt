@@ -8,6 +8,8 @@ Token optimization extension for [pi](https://pi.dev) – routes I/O-heavy opera
 
 Pi-shunt intercepts large file reads and delegates them to a cheaper worker model (Gemini Flash by default), returning structured summaries instead of loading full files into the expensive frontier model's context.
 
+It also delegates boilerplate code generation (tests, stubs, config, docs) to the worker, writing the generated code directly to disk so the frontier model never pays for the output tokens.
+
 ### Before (without shunt)
 ```
 User asks: "What does this service do?"
@@ -29,8 +31,8 @@ Cost: 5,737 tokens (82% savings)
 Three layers, from hard enforcement to soft guidance:
 
 1. **Hooks** – Intercept Read and Bash tool calls, block large file reads
-2. **Tool** – `shunt_read` delegates to worker model via pi subprocess
-3. **Worker** – Fresh pi process with Gemini Flash analyzes files
+2. **Tools** – `shunt_read` delegates file analysis, `shunt_write` delegates code generation
+3. **Worker** – Fresh pi process with Gemini Flash analyzes files and generates code
 
 When pi tries to read a file >350 lines (configurable), shunt blocks it and suggests using `shunt_read` instead. Pi then calls that tool, which spawns a worker pi process to analyze the files and return a structured summary.
 
@@ -96,6 +98,10 @@ Example `~/.pi/agent/settings.json`:
 | `SHUNT_WORKER_MODEL` | `gemini-2.5-flash` | Model to use for analysis |
 | `SHUNT_WORKER_TEMPERATURE` | `0.2` | Temperature for worker model |
 | `SHUNT_WORKER_INSTRUCTIONS` | _(default)_ | Custom system prompt for worker |
+| `SHUNT_READ_ENABLED` | `true` | Enable/disable read interception + `shunt_read` |
+| `SHUNT_WRITE_ENABLED` | `true` | Enable/disable `shunt_write` |
+| `SHUNT_WRITE_INSTRUCTIONS` | _(default)_ | Custom system prompt for the write worker |
+| `SHUNT_CYCLE_KEY` | `ctrl+alt+s` | Keybinding for the cycle shortcut (`modifier+key`, e.g. `ctrl+shift+s`) |
 
 Set them wherever you like: your shell profile, or the `env` block of global or project settings.json (see above).
 
@@ -132,10 +138,31 @@ You: /shunt_read --question "Which methods call the database?" --paths src/Servi
 
 Re-sending files is free where it matters – they go to the worker, not the frontier model.
 
+### Code generation (shunt_write)
+
+For boilerplate that is predictable from existing patterns, `shunt_write` generates the code with the worker and writes it directly to a file. The generated code never enters the frontier model's context – only a summary comes back.
+
+```
+Pi: I'll write tests for UserService following the existing patterns
+Pi calls: shunt_write spec="Write unit tests for UserService..." reference=tests/OrderTest.ts target=tests/UserService.test.ts
+Worker generates: code matching OrderTest.ts patterns
+Wrote 140 lines to tests/UserService.test.ts   [shunt_write: ... tokens]
+```
+
+Best fits: tests, mocks, fixtures, config stubs, type stubs, docstrings. `reference` is required – context-free generation fits nothing in your project. For follow-up calls, pass the file the previous call just generated as the `reference`. After writing, review the file and make surgical edits for the ~5-20% that needs judgment.
+
+Do not use it for editing existing logic or architecture decisions – those need exact content in the frontier model's context.
+
 ## Commands
 
 - `/shunt:config` – Show current configuration
-- `/shunt:toggle` – Enable/disable for this session
+- `/shunt:toggle` – Enable/disable **all** shunt behavior for this session (hooks + tools)
+- `/shunt:toggle:read` – Enable/disable read interception + `shunt_read` only
+- `/shunt:toggle:write` – Enable/disable `shunt_write` only
+- `/shunt:stats` – Show session statistics
+- `/shunt:stats:reset` – Reset session statistics
+
+When a tool is disabled, calling it returns a clear "disabled" message instead of delegating to the worker. With the master toggle off, both tools refuse and the hooks let all reads pass through.
 
 ## What Doesn't Get Delegated
 
@@ -244,7 +271,7 @@ Request must fit in memory. Default max: 400KB. Split large batches if needed.
 ### Project Structure
 
 ```
-extension/
+extensions/
 ├── index.ts              # Main entry point
 ├── package.json          # Dependencies and metadata
 ├── lib/
@@ -263,7 +290,7 @@ extension/
 npm install
 
 # Test in pi
-pi -e ./extension/index.ts
+pi -e ./extensions/index.ts
 
 # Or symlink to extensions directory
 ln -s $(pwd)/extension ~/.pi/agent/extensions/pi-shunt

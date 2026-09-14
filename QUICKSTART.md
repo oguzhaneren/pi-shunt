@@ -30,7 +30,7 @@ cd ~/.pi/agent/extensions/pi-shunt/extension
 Or manually:
 
 ```bash
-pi -e ~/.pi/agent/extensions/pi-shunt/extension/index.ts
+pi -e ~/.pi/agent/extensions/pi-shunt/extensions/index.ts
 ```
 
 You should see: `pi-shunt active (threshold: 350 lines, worker: gemini-2.5-flash)`
@@ -117,8 +117,8 @@ Pi: Based on the analysis, these services form a transaction pipeline:
 
 ## Next Steps
 
-- Read [Extension Documentation](./extension/README.md) for full features
-- Check [Usage Examples](./extension/examples/USAGE.md) for patterns
+- Read [Extension Documentation](./extensions/README.md) for full features
+- Check [Usage Examples](./extensions/examples/USAGE.md) for patterns
 - Configure threshold and worker model to your needs
 - Report issues on GitHub
 
@@ -160,6 +160,6 @@ pi --model gemini-2.5-flash --message "test"
 
 ## Support
 
-- [Full Documentation](./extension/README.md)
+- [Full Documentation](./extensions/README.md)
 - [GitHub Issues](https://github.com/oguzhaneren/pi-shunt/issues)
-- [Examples](./extension/examples/USAGE.md)
+- [Examples](./extensions/examples/USAGE.md)
