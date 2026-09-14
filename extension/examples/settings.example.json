@@ -1,0 +1,23 @@
+{
+  "// NOTE": "Add this to ~/.pi/agent/settings.json (global) or .pi/settings.json (project). pi-shunt reads the env block directly — pi 0.85.x ignores it for its own process.",
+  "env": {
+    "SHUNT_ENABLED": "true",
+    "SHUNT_MIN_LINES": "350",
+    "SHUNT_MAX_PAYLOAD_BYTES": "400000",
+    "SHUNT_WORKER_MODEL": "gemini-2.5-flash",
+    "SHUNT_WORKER_TEMPERATURE": "0.2"
+  },
+  "// Custom worker instructions (optional)": "",
+  "env_example_custom_instructions": {
+    "SHUNT_WORKER_INSTRUCTIONS": "You are a precise code analyst. Read the provided files and answer the question concisely. Output structured bullets only. No greetings, no prose. Lead every bullet with the exact name, type, or line number."
+  },
+  "// Example: Higher threshold for very large codebases": "",
+  "env_example_large_repos": {
+    "SHUNT_MIN_LINES": "500",
+    "SHUNT_MAX_PAYLOAD_BYTES": "800000"
+  },
+  "// Example: Different worker model": "",
+  "env_example_different_model": {
+    "SHUNT_WORKER_MODEL": "gemini-2.0-flash-thinking-exp"
+  }
+}

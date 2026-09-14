@@ -1,0 +1,60 @@
+{
+  "name": "@oguzhaneren/pi-shunt",
+  "version": "0.1.2",
+  "description": "Token optimization extension for pi - routes I/O-heavy operations to cheaper worker models",
+  "main": "extension/index.ts",
+  "author": "Oguzhan Eren",
+  "license": "MIT",
+    "scripts": {
+    "typecheck": "tsc -p extension/tsconfig.json"
+  },
+  "keywords": [
+    "pi",
+    "pi-package",
+    "extension",
+    "pi-extension",
+    "token-optimization",
+    "model-routing",
+    "delegation"
+  ],
+  "files": [
+    "extension/**/*",
+    "README.md",
+    "QUICKSTART.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oguzhaneren/pi-shunt.git"
+  },
+  "bugs": {
+    "url": "https://github.com/oguzhaneren/pi-shunt/issues"
+  },
+  "homepage": "https://github.com/oguzhaneren/pi-shunt#readme",
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.80.6",
+    "@sinclair/typebox": "^0.34.15"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "pi": {
+    "extensions": [
+      "./extension"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
+    "themes": [
+      "./themes"
+    ]
+  }
+}

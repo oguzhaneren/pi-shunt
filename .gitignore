@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.DS_Store
+dist/
+*.tsbuildinfo
+.env
+.env.local
+
+# Pi session files
+.pi/sessions/
+.pi/temp/
