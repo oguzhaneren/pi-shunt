@@ -1,6 +1,6 @@
 {
   "name": "@oguzhaneren/pi-shunt",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Token optimization extension for pi - routes I/O-heavy operations to cheaper worker models",
   "main": "extensions/index.ts",
   "author": "Oguzhan Eren",
@@ -13,8 +13,8 @@
     "test:benchmark": "node tests/benchmark.ts"
   },
   "keywords": [
-    "pi",
     "pi-package",
+    "pi",
     "extension",
     "pi-extension",
     "token-optimization",

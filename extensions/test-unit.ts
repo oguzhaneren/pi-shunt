@@ -1,5 +1,5 @@
 /**
- * Unit self-check for the pure logic introduced in v0.2.0.
+ * Unit self-check for the pure logic introduced in v0.2.1.
  * Run: node extensions/test-unit.ts
  */
 
