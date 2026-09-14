@@ -46,7 +46,7 @@ Match the existing patterns, conventions, naming, and style of the reference cod
 
 Output only the code — no explanations, no preambles, no markdown fences unless the spec asks for them.
 
-If the spec is ambiguous, make reasonable choices that match the patterns in the reference.`;
+You have no tools and cannot read additional files. If the spec mentions code that is not included in the message, make reasonable assumptions that match the reference patterns and generate the best possible version. Never ask questions or request more context — always output code.`;
 
 export interface ConfigSource {
   enabled: string | undefined;

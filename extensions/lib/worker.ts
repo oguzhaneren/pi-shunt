@@ -184,6 +184,7 @@ async function spawnPi(
     let buffer = '';
     let stderr = '';
     let lastText = '';
+    let lastThinking = '';
     let usage: TokenUsage | undefined;
     let workerModel: string | undefined;
     let errorMessage: string | undefined;
@@ -208,6 +209,14 @@ async function spawnPi(
             .map((part) => part.text)
             .join('');
           if (text) lastText = text;
+
+          // Reasoning models sometimes answer with thinking only - capture it
+          // so the "no text" error explains what the model did.
+          const thinking = (msg.content ?? [])
+            .filter((part) => part.type === 'thinking')
+            .map((part) => (part as unknown as { thinking: string }).thinking)
+            .join(' ');
+          if (thinking) lastThinking = thinking;
 
           if (msg.usage) {
             usage = {
@@ -252,7 +261,8 @@ async function spawnPi(
       }
       if (!lastText) {
         // JSON mode produced no assistant text — surface the raw tail for debugging.
-        reject(new Error(`Worker returned no text. Raw output: ${stderr.trim().slice(0, 500)}`));
+        const clue = lastThinking ? ` Worker only reasoned: "${lastThinking.slice(0, 200)}"` : '';
+        reject(new Error(`Worker returned no text.${clue} Raw output: ${stderr.trim().slice(0, 500)}`));
         return;
       }
 

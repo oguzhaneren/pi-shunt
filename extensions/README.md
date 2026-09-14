@@ -299,9 +299,20 @@ ln -s $(pwd)/extension ~/.pi/agent/extensions/pi-shunt
 ### Running Tests
 
 ```bash
-# Coming soon
+# All tests (unit + integration)
 npm test
+
+# Unit tests only (no pi subprocess)
+npm run test:unit
+
+# Integration tests (needs pi)
+npm run test:integration
+
+# Token savings benchmarks
+npm run test:benchmark
 ```
+
+See [`tests/README.md`](../tests/README.md) for details.
 
 ## Troubleshooting
 
