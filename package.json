@@ -1,6 +1,6 @@
 {
   "name": "@oguzhaneren/pi-shunt",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Token optimization extension for pi - routes I/O-heavy operations to cheaper worker models",
   "main": "extension/index.ts",
   "author": "Oguzhan Eren",
