@@ -10,7 +10,8 @@
     "test": "bash tests/run.sh",
     "test:unit": "node --test tests/unit.test.ts",
     "test:integration": "node --test tests/integration.test.ts",
-    "test:benchmark": "node tests/benchmark.ts"
+    "test:benchmark": "node tests/benchmark.ts",
+    "prepublishOnly": "npm run typecheck && npm run test:unit"
   },
   "keywords": [
     "pi-package",
@@ -23,6 +24,7 @@
   ],
   "files": [
     "extensions/**/*",
+    "skills/**/*",
     "README.md",
     "QUICKSTART.md",
     "LICENSE",
