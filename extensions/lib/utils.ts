@@ -88,14 +88,46 @@ export function isBashReadCommand(command: string): { isRead: boolean; filePath?
     return { isRead: false };
   }
 
-  // Extract file path, skipping flags
-  const args = match[2].trim().split(/\s+/);
-  for (const arg of args) {
-    if (!arg.startsWith('-')) {
-      // Remove quotes if present
-      const filePath = arg.replace(/^["']|["']$/g, '');
-      return { isRead: true, filePath };
+  // Parse args respecting quotes
+  const argsString = match[2].trim();
+  const args: string[] = [];
+  let current = '';
+  let inQuote: string | null = null;
+
+  for (let i = 0; i < argsString.length; i++) {
+    const char = argsString[i];
+    
+    if (inQuote) {
+      if (char === inQuote) {
+        inQuote = null;
+      } else {
+        current += char;
+      }
+    } else if (char === '"' || char === "'") {
+      inQuote = char;
+    } else if (char === ' ' || char === '\t') {
+      if (current) {
+        args.push(current);
+        current = '';
+      }
+    } else {
+      current += char;
     }
+  }
+  if (current) args.push(current);
+
+  // Find first non-flag arg (skip flags and their values)
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('-')) {
+      // Skip flags with values: -n NUM, -c NUM
+      // -f (follow) is a boolean flag, doesn't take a value
+      if (arg.match(/^-[nc]$/) && i + 1 < args.length) {
+        i++; // skip next arg (the flag's value)
+      }
+      continue;
+    }
+    return { isRead: true, filePath: arg };
   }
 
   return { isRead: false };

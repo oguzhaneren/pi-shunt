@@ -7,11 +7,12 @@
   "license": "MIT",
   "scripts": {
     "typecheck": "tsc -p extensions/tsconfig.json",
-    "test": "bash tests/run.sh",
+    "test": "bash tests/run.sh && npm run test:hooks",
     "test:unit": "node --test tests/unit.test.ts",
+    "test:hooks": "node --test tests/hooks.test.ts",
     "test:integration": "node --test tests/integration.test.ts",
     "test:benchmark": "node tests/benchmark.ts",
-    "prepublishOnly": "npm run typecheck && npm run test:unit"
+    "prepublishOnly": "npm run typecheck && npm run test:unit && npm run test:hooks"
   },
   "keywords": [
     "pi-package",

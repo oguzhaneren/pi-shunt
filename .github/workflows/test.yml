@@ -25,3 +25,6 @@ jobs:
 
       - name: Unit tests
         run: npm run test:unit
+
+      - name: Hook tests
+        run: npm run test:hooks
