@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions & Discussion
+    url: https://github.com/oguzhaneren/pi-shunt/discussions
+    about: Ask questions or discuss usage (if discussions are enabled)

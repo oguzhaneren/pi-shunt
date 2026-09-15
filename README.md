@@ -11,12 +11,7 @@ Token optimization extension that routes I/O-heavy operations to cheaper worker 
 ## Quick Start
 
 ```bash
-# Install globally
-git clone https://github.com/oguzhaneren/pi-shunt.git ~/.pi/agent/extensions/pi-shunt
-cd ~/.pi/agent/extensions/pi-shunt
-npm install
-
-# or
+# Install from npm (recommended)
 pi install npm:@oguzhaneren/pi-shunt
 
 # Start pi – shunt is active immediately
@@ -109,7 +104,15 @@ Pi receives: "Wrote 140 lines to UserService.test.ts [shunt: ... tokens]"
 
 ## Installation
 
-### Option 1: Global (all projects)
+### Option 1: Via npm (recommended)
+
+```bash
+pi install npm:@oguzhaneren/pi-shunt
+```
+
+Dependencies install automatically; updates arrive via `pi update`.
+
+### Option 2: Global from git (all projects)
 
 ```bash
 # Clone to pi extensions directory
@@ -120,19 +123,13 @@ cd ~/.pi/agent/extensions/pi-shunt
 npm install
 ```
 
-### Option 2: Project-local
+### Option 3: Project-local from git
 
 ```bash
 # In your project
 git clone https://github.com/oguzhaneren/pi-shunt.git .pi/extensions/pi-shunt
 cd .pi/extensions/pi-shunt
 npm install
-```
-
-### Option 3: Via npm 
-
-```bash
-pi install npm:@oguzhaneren/pi-shunt
 ```
 
 ---

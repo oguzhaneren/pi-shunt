@@ -9,3 +9,6 @@ shunt/
 # Pi session files
 .pi/sessions/
 .pi/temp/
+
+# Stale planning docs (kept local, not published)
+docs/

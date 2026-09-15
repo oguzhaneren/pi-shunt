@@ -5,17 +5,25 @@ Get up and running in 2 minutes.
 ## Prerequisites
 
 - [pi](https://pi.dev) installed and working
-- Node.js 20+ (for npm install)
+- Node.js 20+ (git install only; npm install handles dependencies)
 - A model provider configured (Gemini, OpenAI, etc.)
 
 ## Installation
+
+### Via npm (recommended)
+
+```bash
+pi install npm:@oguzhaneren/pi-shunt
+```
+
+### From git (for development)
 
 ```bash
 # Clone to pi's global extensions directory
 git clone https://github.com/oguzhaneren/pi-shunt.git ~/.pi/agent/extensions/pi-shunt
 
 # Install dependencies
-cd ~/.pi/agent/extensions/pi-shunt/extension
+cd ~/.pi/agent/extensions/pi-shunt
 npm install
 ```
 
@@ -23,8 +31,8 @@ npm install
 
 ```bash
 # Quick test
-cd ~/.pi/agent/extensions/pi-shunt/extension
-./test-load.sh
+cd ~/.pi/agent/extensions/pi-shunt
+./extensions/test-load.sh
 ```
 
 Or manually:
@@ -73,7 +81,7 @@ You should see: `pi-shunt active (threshold: 350 lines, worker: gemini-2.5-flash
 
 ## Configuration (Optional)
 
-Add to `~/.pi/agent/settings.json`:
+Add to `~/.pi/agent/settings.json` (global) or `.pi/settings.json` (project):
 
 ```json
 {
@@ -81,6 +89,14 @@ Add to `~/.pi/agent/settings.json`:
     "SHUNT_MIN_LINES": "350",
     "SHUNT_WORKER_MODEL": "gemini-2.5-flash"
   }
+}
+```
+
+For npm installs, the extension is auto-loaded. For git installs, add:
+
+```json
+{
+  "extensions": ["~/.pi/agent/extensions/pi-shunt"]
 }
 ```
 
