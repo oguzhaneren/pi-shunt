@@ -32,12 +32,15 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oguzhaneren/pi-shunt.git"
+    "url": "https://github.com/oguzhaneren/pi-shunt.git"
   },
   "bugs": {
     "url": "https://github.com/oguzhaneren/pi-shunt/issues"
   },
   "homepage": "https://github.com/oguzhaneren/pi-shunt#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@earendil-works/pi-coding-agent": ">=0.80.6",
     "@sinclair/typebox": "^0.34.15"

@@ -19,8 +19,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
+          node-version: 24
+          # Do NOT set registry-url: it writes an .npmrc with a placeholder
+          # NODE_AUTH_TOKEN, and npm prefers that over OIDC, breaking
+          # trusted publishing (npm/cli#8730).
 
       - name: Verify tag matches package.json version
         run: |
