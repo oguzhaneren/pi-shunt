@@ -172,6 +172,18 @@ Example `~/.pi/agent/settings.json`:
 | `SHUNT_WRITE_ENABLED` | `true` | Enable/disable `shunt_write` |
 | `SHUNT_WRITE_INSTRUCTIONS` | _(default)_ | Custom system prompt for the write worker |
 | `SHUNT_CYCLE_KEY` | `ctrl+alt+s` | Keybinding for the cycle shortcut |
+| `SHUNT_WORKER_TIMEOUT_MS` | `120000` | Kill a worker subprocess that runs longer than this |
+| `SHUNT_ALLOW_PATHS` | _(none)_ | Colon-separated extra roots the shunt tools may read or write |
+| `SHUNT_DENY_GLOBS` | _(none)_ | Comma-separated globs appended to the built-in secrets denylist |
+| `SHUNT_WRITE_OVERWRITE` | `false` | Let `shunt_write` replace an existing file without confirmation |
+
+### Path policy
+
+`shunt_read` and `shunt_write` send file contents to a worker model running on another provider, so both confine every path to the project root (`process.cwd()` when pi started) and refuse files that commonly hold secrets: `.env*`, `*.pem`, `*.key`, `id_rsa*`, `.npmrc`, `.netrc`, `credentials*`, `secrets.*`, anything under `.ssh`, `.aws`, or `.gnupg`, and more. Symlinks are resolved before the check, so a link inside the project cannot point outside it.
+
+`SHUNT_DENY_GLOBS` extends that list and cannot shrink it. A denied file is still readable with pi's built-in `read` tool, which keeps it in the main session instead of sending it to the worker provider. `SHUNT_ALLOW_PATHS` widens the roots, for example when pi runs in one package of a monorepo.
+
+`shunt_write` additionally refuses a directory or symlink target, asks before replacing an existing non-empty file (and refuses outright when running without a UI unless `SHUNT_WRITE_OVERWRITE=true`), and writes through a temp file so a crash cannot truncate the target.
 
 ---
 
