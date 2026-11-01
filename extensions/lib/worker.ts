@@ -144,41 +144,89 @@ function toWorkerResult(result: SpawnResult, message: string): WorkerResult {
   };
 }
 
-interface SpawnResult {
+export interface SpawnResult {
   text: string;
   usage?: TokenUsage;
   workerModel?: string;
 }
 
 /**
- * Spawn a pi subprocess in JSON mode and parse the JSONL event stream.
+ * Build the argv for a worker pi process.
+ *
+ * The isolation flags matter as much as the model: without them the worker
+ * loads AGENTS.md/CLAUDE.md, every installed extension (pi-shunt included),
+ * skills, prompt templates, themes, and connects MCP servers, which inflates
+ * the worker input this extension exists to shrink.
+ */
+export function buildWorkerArgs(
+  config: ShuntConfig,
+  messagePath: string,
+  systemPrompt: string | undefined
+): string[] {
+  return [
+    '--mode', 'json',
+    '-p',
+    '--no-session',
+    '--model', config.workerModel,
+    '--system-prompt', systemPrompt ?? config.workerInstructions,
+    '--no-tools',
+    '--no-extensions',
+    '--no-skills',
+    '--no-prompt-templates',
+    '--no-themes',
+    '--no-mcp',
+    '--no-context-files',
+    '--no-approve',
+    // '@' prefix makes pi read the message file as the user message
+    // (without it, pi treats the path as literal text).
+    `@${messagePath}`,
+  ];
+}
+
+/**
+ * Environment for a worker pi process: the parent environment minus the
+ * SHUNT_* keys, so the worker cannot pick up shunt config of its own.
+ * Provider credentials pass through, since the worker needs them to run.
+ */
+export function buildWorkerEnv(env: Record<string, string | undefined>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (key.startsWith('SHUNT_') || value === undefined) continue;
+    result[key] = value;
+  }
+  return result;
+}
+
+export interface RunWorkerOptions {
+  timeoutMs: number;
+  signal?: AbortSignal;
+  env?: Record<string, string>;
+}
+
+/** Grace period between SIGTERM and SIGKILL for a timed-out worker. */
+const KILL_GRACE_MS = 5000;
+
+/**
+ * Run a worker process and parse its JSONL event stream.
  *
  * Event shape (mirrors examples/extensions/subagent):
  *   {"type":"message_end","message":{"role":"assistant","content":[...],
  *    "usage":{"input":N,"output":N,"cacheRead":N,"cacheWrite":N,"totalTokens":N},...}}
+ *
+ * A worker that outlives `timeoutMs` is killed and reported as an error.
+ * Partial output is discarded: the main model cannot tell a truncated analysis
+ * from a complete one, so an error is the safer result.
  */
-async function spawnPi(
-  config: ShuntConfig,
-  messagePath: string,
-  signal?: AbortSignal,
-  systemPrompt?: string
+export function runWorkerProcess(
+  command: string,
+  args: string[],
+  options: RunWorkerOptions
 ): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
-    const args = [
-      '--mode', 'json',
-      '-p',
-      '--no-session',
-      '--model', config.workerModel,
-      '--system-prompt', systemPrompt ?? config.workerInstructions,
-      '--no-tools',
-      // '@' prefix makes pi read the message file as the user message
-      // (without it, pi treats the path as literal text).
-      `@${messagePath}`,
-    ];
-
-    const proc = spawn('pi', args, {
+    const proc = spawn(command, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      signal,
+      signal: options.signal,
+      env: options.env,
     });
 
     let buffer = '';
@@ -188,6 +236,31 @@ async function spawnPi(
     let usage: TokenUsage | undefined;
     let workerModel: string | undefined;
     let errorMessage: string | undefined;
+    let settled = false;
+
+    const finish = (action: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearTimeout(killTimer);
+      action();
+    };
+
+    let killTimer: NodeJS.Timeout | undefined;
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM');
+      killTimer = setTimeout(() => proc.kill('SIGKILL'), KILL_GRACE_MS);
+      killTimer.unref?.();
+      finish(() =>
+        reject(
+          new Error(
+            `Worker timed out after ${options.timeoutMs}ms (SHUNT_WORKER_TIMEOUT_MS)` +
+            `${stderr ? `: ${stderr.trim().slice(0, 300)}` : ''}`
+          )
+        )
+      );
+    }, options.timeoutMs);
+    timer.unref?.();
 
     const processLine = (line: string) => {
       if (!line.trim()) return;
@@ -245,28 +318,44 @@ async function spawnPi(
     });
 
     proc.on('error', (err) => {
-      reject(new Error(`Failed to spawn pi: ${err.message}`));
+      finish(() => reject(new Error(`Failed to spawn ${command}: ${err.message}`)));
     });
 
     proc.on('close', (code) => {
       if (buffer.trim()) processLine(buffer);
 
-      if (errorMessage) {
-        reject(new Error(`Worker model reported: ${errorMessage}${stderr ? ` (${stderr.trim()})` : ''}`));
-        return;
-      }
-      if (code !== 0) {
-        reject(new Error(`pi exited with code ${code}: ${stderr.trim()}`));
-        return;
-      }
-      if (!lastText) {
-        // JSON mode produced no assistant text — surface the raw tail for debugging.
-        const clue = lastThinking ? ` Worker only reasoned: "${lastThinking.slice(0, 200)}"` : '';
-        reject(new Error(`Worker returned no text.${clue} Raw output: ${stderr.trim().slice(0, 500)}`));
-        return;
-      }
+      finish(() => {
+        if (errorMessage) {
+          reject(new Error(`Worker model reported: ${errorMessage}${stderr ? ` (${stderr.trim()})` : ''}`));
+          return;
+        }
+        if (code !== 0) {
+          reject(new Error(`${command} exited with code ${code}: ${stderr.trim()}`));
+          return;
+        }
+        if (!lastText) {
+          // JSON mode produced no assistant text - surface the raw tail for debugging.
+          const clue = lastThinking ? ` Worker only reasoned: "${lastThinking.slice(0, 200)}"` : '';
+          reject(new Error(`Worker returned no text.${clue} Raw output: ${stderr.trim().slice(0, 500)}`));
+          return;
+        }
 
-      resolve({ text: lastText.trim(), usage, workerModel });
+        resolve({ text: lastText.trim(), usage, workerModel });
+      });
     });
+  });
+}
+
+/** Spawn a worker pi process with the configured model, prompt, and timeout. */
+async function spawnPi(
+  config: ShuntConfig,
+  messagePath: string,
+  signal?: AbortSignal,
+  systemPrompt?: string
+): Promise<SpawnResult> {
+  return runWorkerProcess('pi', buildWorkerArgs(config, messagePath, systemPrompt), {
+    timeoutMs: config.workerTimeoutMs,
+    signal,
+    env: buildWorkerEnv(process.env as Record<string, string | undefined>),
   });
 }

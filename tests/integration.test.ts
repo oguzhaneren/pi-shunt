@@ -7,6 +7,7 @@
 import { describe, it } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { delegateToWorker, delegateWriteToWorker } from '../extensions/lib/worker.ts';
+import { estimateTokens } from '../extensions/lib/utils.ts';
 import { loadConfig } from '../extensions/lib/config.ts';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -80,6 +81,50 @@ describe('worker delegation', () => {
     await assert.rejects(
       async () => delegateToWorker(files, 'question', config),
       /exceeds limit/
+    );
+  });
+
+  it('worker input tracks the corpus, not the local context files', async () => {
+    // A worker that loads AGENTS.md/CLAUDE.md, skills and extensions reports far
+    // more input than the corpus explains. Run from a directory with a fat
+    // AGENTS.md to catch that regression.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shunt-context-'));
+    fs.writeFileSync(
+      path.join(dir, 'AGENTS.md'),
+      ('# Project rules\n\n' + 'Follow this rule carefully in every case. '.repeat(400))
+    );
+
+    const content = fs.readFileSync('tests/fixtures/user-service.ts', 'utf-8');
+    const files = [{ path: 'tests/fixtures/user-service.ts', content }];
+    const question = 'List the exported class and its methods';
+
+    const originalCwd = process.cwd();
+    process.chdir(dir);
+    let result;
+    try {
+      result = await delegateToWorker(files, question, config);
+    } finally {
+      process.chdir(originalCwd);
+    }
+
+    assert.ok(result.usage, 'worker reported real usage');
+    const corpusEstimate = estimateTokens(content) + estimateTokens(question);
+    assert.ok(
+      result.usage!.input < corpusEstimate * 3,
+      `worker input ${result.usage!.input} should track corpus estimate ${corpusEstimate}, ` +
+      `not the local AGENTS.md`
+    );
+  });
+
+  it('kills a worker that outlives the timeout', async () => {
+    const files = [{
+      path: 'tests/fixtures/user-service.ts',
+      content: fs.readFileSync('tests/fixtures/user-service.ts', 'utf-8')
+    }];
+
+    await assert.rejects(
+      async () => delegateToWorker(files, 'Summarize', { ...config, workerTimeoutMs: 50 }),
+      /timed out after 50ms/
     );
   });
 });
