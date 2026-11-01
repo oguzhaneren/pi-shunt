@@ -30,6 +30,14 @@ export interface ShuntConfig {
   writeInstructions: string;
   /** Keybinding for the cycle shortcut (SHUNT_CYCLE_KEY). */
   cycleKey: string;
+  /** Hard deadline for a worker subprocess (SHUNT_WORKER_TIMEOUT_MS). */
+  workerTimeoutMs: number;
+  /** Colon-separated extra roots the shunt tools may touch (SHUNT_ALLOW_PATHS). */
+  allowPaths: string;
+  /** Comma-separated globs appended to the built-in secrets denylist (SHUNT_DENY_GLOBS). */
+  denyGlobs: string;
+  /** Replace existing files from shunt_write without asking (SHUNT_WRITE_OVERWRITE). */
+  writeOverwrite: boolean;
 }
 
 const DEFAULT_WORKER_INSTRUCTIONS = `You are a precise code analyst. Read the provided files and answer the question concisely.
@@ -59,6 +67,10 @@ export interface ConfigSource {
   writeEnabled: string | undefined;
   writeInstructions: string | undefined;
   cycleKey: string | undefined;
+  workerTimeoutMs: string | undefined;
+  allowPaths: string | undefined;
+  denyGlobs: string | undefined;
+  writeOverwrite: string | undefined;
 }
 
 /** Read the `env` block from a settings.json file, if present. */
@@ -85,6 +97,10 @@ function pickShuntEnv(env: Record<string, string>): ConfigSource {
     writeEnabled: env.SHUNT_WRITE_ENABLED,
     writeInstructions: env.SHUNT_WRITE_INSTRUCTIONS,
     cycleKey: env.SHUNT_CYCLE_KEY,
+    workerTimeoutMs: env.SHUNT_WORKER_TIMEOUT_MS,
+    allowPaths: env.SHUNT_ALLOW_PATHS,
+    denyGlobs: env.SHUNT_DENY_GLOBS,
+    writeOverwrite: env.SHUNT_WRITE_OVERWRITE,
   };
 }
 
@@ -101,6 +117,10 @@ function mergeSource(higher: ConfigSource, lower: ConfigSource): ConfigSource {
     writeEnabled: higher.writeEnabled ?? lower.writeEnabled,
     writeInstructions: higher.writeInstructions ?? lower.writeInstructions,
     cycleKey: higher.cycleKey ?? lower.cycleKey,
+    workerTimeoutMs: higher.workerTimeoutMs ?? lower.workerTimeoutMs,
+    allowPaths: higher.allowPaths ?? lower.allowPaths,
+    denyGlobs: higher.denyGlobs ?? lower.denyGlobs,
+    writeOverwrite: higher.writeOverwrite ?? lower.writeOverwrite,
   };
 }
 
@@ -117,6 +137,10 @@ export function loadConfig(cwd = process.cwd()): ShuntConfig {
     writeEnabled: process.env.SHUNT_WRITE_ENABLED,
     writeInstructions: process.env.SHUNT_WRITE_INSTRUCTIONS,
     cycleKey: process.env.SHUNT_CYCLE_KEY,
+    workerTimeoutMs: process.env.SHUNT_WORKER_TIMEOUT_MS,
+    allowPaths: process.env.SHUNT_ALLOW_PATHS,
+    denyGlobs: process.env.SHUNT_DENY_GLOBS,
+    writeOverwrite: process.env.SHUNT_WRITE_OVERWRITE,
   };
 
   // 2. Project settings.json.
@@ -135,6 +159,7 @@ export function loadConfig(cwd = process.cwd()): ShuntConfig {
   const minLines = parseInt(merged.minLines ?? '350', 10);
   const maxPayloadBytes = parseInt(merged.maxPayloadBytes ?? '400000', 10);
   const temperature = parseFloat(merged.workerTemperature ?? '0.2');
+  const workerTimeoutMs = parseInt(merged.workerTimeoutMs ?? '120000', 10);
 
   return {
     enabled: merged.enabled === undefined ? true : yes(merged.enabled),
@@ -147,5 +172,10 @@ export function loadConfig(cwd = process.cwd()): ShuntConfig {
     writeInstructions: merged.writeInstructions ?? DEFAULT_WRITE_INSTRUCTIONS,
     readEnabled: merged.readEnabled === undefined ? true : yes(merged.readEnabled),
     cycleKey: merged.cycleKey ?? 'ctrl+alt+s',
+    workerTimeoutMs:
+      Number.isNaN(workerTimeoutMs) || workerTimeoutMs <= 0 ? 120000 : workerTimeoutMs,
+    allowPaths: merged.allowPaths ?? '',
+    denyGlobs: merged.denyGlobs ?? '',
+    writeOverwrite: yes(merged.writeOverwrite),
   };
 }

@@ -8,19 +8,25 @@ import { Type } from '@sinclair/typebox';
 import type { ShuntConfig } from '../lib/config.ts';
 import { delegateToWorker } from '../lib/worker.ts';
 import { isFileReadable, estimateTokens } from '../lib/utils.ts';
+import { resolveAllowedPath, type PathPolicy } from '../lib/paths.ts';
 import { recordRawFile, stats } from '../lib/stats.ts';
 
-export function registerShuntRead(pi: ExtensionAPI, config: ShuntConfig) {
+export function registerShuntRead(pi: ExtensionAPI, config: ShuntConfig, policy: PathPolicy) {
   pi.registerTool({
     name: 'shunt_read',
     label: 'Shunt Read',
-    description: 'Read and analyze multiple large files efficiently using a worker model. Use when blocked from reading large files directly.',
+    description: 'Read and analyze multiple large files efficiently using a worker model. Use when blocked from reading large files directly. Paths must be inside the project; files that commonly hold secrets are refused.',
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: true
+    },
     promptSnippet: 'Delegate bulk file reading to a cheaper worker model for analysis',
     promptGuidelines: [
       'Use shunt_read when you need to read files >350 lines',
       'Use shunt_read when analyzing 3+ files together',
       'Ask specific questions - worker provides structured summaries',
-      'Verify exact line numbers before making edits'
+      'Verify exact line numbers before making edits',
+      'Only project files are readable; secrets such as .env or private keys are refused by design'
     ],
     parameters: Type.Object({
       question: Type.String({ 
@@ -42,14 +48,24 @@ export function registerShuntRead(pi: ExtensionAPI, config: ShuntConfig) {
         };
       }
 
-      // Validate files
+      // Validate files: policy first, so a denied path never reaches the worker.
       const files: Array<{ path: string; content: string }> = [];
-      for (const filePath of paths) {
+      for (const requestedPath of paths) {
+        const decision = resolveAllowedPath(requestedPath, policy, 'read');
+        if (!decision.ok) {
+          return {
+            content: [{ type: 'text', text: `Error: ${decision.reason}` }],
+            details: { error: 'path_denied', path: requestedPath },
+            isError: true
+          };
+        }
+
+        const filePath = decision.path;
         if (!isFileReadable(filePath)) {
           return {
             content: [{
               type: 'text',
-              text: `Error: File not found or unreadable: ${filePath}`
+              text: `Error: File not found or unreadable: ${requestedPath}`
             }],
             details: { error: 'file_not_found' },
             isError: true
@@ -63,7 +79,7 @@ export function registerShuntRead(pi: ExtensionAPI, config: ShuntConfig) {
           return {
             content: [{
               type: 'text',
-              text: `Error reading ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+              text: `Error reading ${requestedPath}: ${error instanceof Error ? error.message : String(error)}`
             }],
             details: { error: 'read_failed' },
             isError: true
