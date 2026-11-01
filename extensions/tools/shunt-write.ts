@@ -13,19 +13,27 @@ import { Type } from '@sinclair/typebox';
 import type { ShuntConfig } from '../lib/config.ts';
 import { delegateWriteToWorker } from '../lib/worker.ts';
 import { isFileReadable, stripFences } from '../lib/utils.ts';
+import { resolveAllowedPath, type PathPolicy } from '../lib/paths.ts';
+import { prepareWriteTarget, writeFileAtomic } from '../lib/write-target.ts';
 import { stats } from '../lib/stats.ts';
 
-export function registerShuntWrite(pi: ExtensionAPI, config: ShuntConfig) {
+export function registerShuntWrite(pi: ExtensionAPI, config: ShuntConfig, policy: PathPolicy) {
   pi.registerTool({
     name: 'shunt_write',
     label: 'Shunt Write',
     description: 'Generate code (tests, boilerplate, config stubs, type stubs, docstrings) with a worker model, writing directly to a target file. Use when >80% of the code is predictable from a reference file. The generated code never enters the main context - only a summary comes back.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: true
+    },
     promptSnippet: 'Delegate boilerplate code generation to a cheaper worker model',
     promptGuidelines: [
       'Use shunt_write for tests, mocks, fixtures, config stubs, docstrings, type stubs - anything predictable from reference patterns',
       'Pass a reference file whose patterns the output must match. For follow-up calls, reference the file the previous call just generated',
       'After writing, review the generated file and make surgical edits for the ~5-20% that needs judgment',
-      'Do not use for editing existing logic or architectural decisions - those need exact content in context'
+      'Do not use for editing existing logic or architectural decisions - those need exact content in context',
+      'Reference and target must be inside the project. Replacing an existing file needs confirmation'
     ],
     parameters: Type.Object({
       spec: Type.String({
@@ -49,7 +57,16 @@ export function registerShuntWrite(pi: ExtensionAPI, config: ShuntConfig) {
         };
       }
 
-      if (!isFileReadable(reference)) {
+      const referenceDecision = resolveAllowedPath(reference, policy, 'read');
+      if (!referenceDecision.ok) {
+        return {
+          content: [{ type: 'text', text: `Error: ${referenceDecision.reason}` }],
+          details: { error: 'path_denied', path: reference },
+          isError: true
+        };
+      }
+
+      if (!isFileReadable(referenceDecision.path)) {
         return {
           content: [{ type: 'text', text: `Error: reference file not found or unreadable: ${reference}` }],
           details: { error: 'reference_not_found' },
@@ -57,9 +74,25 @@ export function registerShuntWrite(pi: ExtensionAPI, config: ShuntConfig) {
         };
       }
 
+      // Check the target before spending a worker call on code that cannot land.
+      const targetDecision = await prepareWriteTarget({
+        target,
+        policy,
+        hasUI: ctx.hasUI,
+        allowOverwrite: config.writeOverwrite,
+        confirm: (title, message) => ctx.ui.confirm(title, message)
+      });
+      if (!targetDecision.ok) {
+        return {
+          content: [{ type: 'text', text: `Error: ${targetDecision.reason}` }],
+          details: { error: targetDecision.code, target },
+          isError: true
+        };
+      }
+
       const start = performance.now();
       try {
-        const refContent = fs.readFileSync(reference, 'utf-8');
+        const refContent = fs.readFileSync(referenceDecision.path, 'utf-8');
         const result = await delegateWriteToWorker(
           spec,
           { path: reference, content: refContent },
@@ -78,7 +111,7 @@ export function registerShuntWrite(pi: ExtensionAPI, config: ShuntConfig) {
           };
         }
 
-        fs.writeFileSync(target, code, 'utf-8');
+        writeFileAtomic(targetDecision.path, code);
         const lines = code.split('\n').length;
 
         stats.writesDone++;
@@ -100,12 +133,19 @@ export function registerShuntWrite(pi: ExtensionAPI, config: ShuntConfig) {
 
         return {
           content: [
-            { type: 'text', text: `Wrote ${lines} lines to ${target}. Review the file - make surgical edits for anything needing judgment.` },
+            {
+              type: 'text',
+              text:
+                `Wrote ${lines} lines to ${target}` +
+                `${targetDecision.replacedLines > 0 ? `, replacing ${targetDecision.replacedLines} lines` : ''}` +
+                `. Review the file - make surgical edits for anything needing judgment.`
+            },
             { type: 'text', text: `\n\n${statsLine}` }
           ],
           details: {
             target,
             linesWritten: lines,
+            linesReplaced: targetDecision.replacedLines,
             inputTokens: result.inputTokens,
             outputTokens: result.outputTokens,
             totalTokens: result.totalTokens,

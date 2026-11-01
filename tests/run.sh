@@ -46,7 +46,8 @@ done
 if [ $RUN_UNIT -eq 1 ]; then
   echo "1. Unit Tests"
   echo "-------------"
-  node --test tests/unit.test.ts
+  node --test tests/unit.test.ts tests/paths.test.ts tests/write-safety.test.ts tests/worker.test.ts
+  node --test tests/hooks.test.ts
   echo
 fi
 

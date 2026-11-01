@@ -8,7 +8,7 @@
   "scripts": {
     "typecheck": "tsc -p extensions/tsconfig.json",
     "test": "bash tests/run.sh && npm run test:hooks",
-    "test:unit": "node --test tests/unit.test.ts",
+    "test:unit": "node --test tests/unit.test.ts tests/paths.test.ts tests/write-safety.test.ts tests/worker.test.ts",
     "test:hooks": "node --test tests/hooks.test.ts",
     "test:integration": "node --test tests/integration.test.ts",
     "test:benchmark": "node tests/benchmark.ts",
@@ -46,11 +46,8 @@
     "node": ">=22.6.0"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.80.6",
+    "@earendil-works/pi-coding-agent": "^1.4.0",
     "@sinclair/typebox": "^0.34.15"
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

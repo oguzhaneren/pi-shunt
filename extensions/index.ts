@@ -11,6 +11,7 @@
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { loadConfig } from './lib/config.ts';
+import { buildPathPolicy } from './lib/paths.ts';
 import { getLineCount, isBashReadCommand } from './lib/utils.ts';
 import { formatStats, fileTokenEstimate, recordRawFile, stats, countedPaths } from './lib/stats.ts';
 import { registerShuntRead } from './tools/shunt-read.ts';
@@ -23,15 +24,20 @@ export default function piShuntExtension(pi: ExtensionAPI) {
   const config = loadConfig(process.cwd());
   stats.workerModel = config.workerModel;
 
+  // The shunt tools move file contents to a worker model on another provider,
+  // so every path they touch is confined to the project and screened against
+  // the secrets denylist.
+  const pathPolicy = buildPathPolicy(process.cwd(), config.allowPaths, config.denyGlobs);
+
   if (!config.enabled) {
     return;
   }
 
   // Register the bulk read tool
-  registerShuntRead(pi, config);
+  registerShuntRead(pi, config, pathPolicy);
 
   // Register the code generation tool
-  registerShuntWrite(pi, config);
+  registerShuntWrite(pi, config, pathPolicy);
 
   // Hook: Intercept Read tool calls on large files
   pi.on('tool_call', async (event, ctx) => {
@@ -150,8 +156,15 @@ Enabled: ${config.enabled}
 Min Lines Threshold: ${config.minLines}
 Max Payload Bytes: ${config.maxPayloadBytes}
 Worker Model: ${config.workerModel}
-Worker Temperature: ${config.workerTemperature}
+Worker Timeout: ${config.workerTimeoutMs}ms
 Cycle Key: ${config.cycleKey}
+
+Path Policy
+===========
+Project root: ${pathPolicy.roots[0]}
+Extra roots: ${pathPolicy.roots.slice(1).join(', ') || 'none'}
+Deny globs: ${pathPolicy.denyGlobs.length} patterns (built-in${config.denyGlobs ? ' + SHUNT_DENY_GLOBS' : ''})
+Write overwrite: ${config.writeOverwrite ? 'ALLOWED without prompt' : 'needs confirmation'}
 
 Toggle Status
 =============
